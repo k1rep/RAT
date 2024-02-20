@@ -50,13 +50,13 @@ public class Project {
 
     public Project(String[] info) {
         projectAddress = info[0];
-        name = projectAddress.substring(projectAddress.lastIndexOf("\\")+1);
+        name = projectAddress.substring(projectAddress.lastIndexOf("/")+1);
         startHash = info[1];
         endHash = info[2];
 //        startHash = "6555d3cebbc83c04e39eb2071f9f4912430e8c97";
 //        endHash = "9ed57d1e21e9bb3795e02aaed6bc40696fa51de5";//TODO for test f65d3a05dfec17d851aed9f1b262ee64710b99a7
 //        projectAddress = "C:\\dataset\\jitfine\\" + name;
-        refactoringMinerAddress = "/" + name + ".json";
+        refactoringMinerAddress = name + ".json";
         commitList = getList();
         refactorings = readRefactoring();
     }
