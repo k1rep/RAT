@@ -24,7 +24,8 @@ public class GenerateJsonFiles {
         Path path = Paths.get(refactoringMinerAddress);
         try {
             if(Files.exists(path)) {
-                Files.delete(path);
+                logger.warn("File already exists");
+                return;
             }
             if(Files.notExists(path)) {
                 Files.createFile(path);
