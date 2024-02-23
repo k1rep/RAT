@@ -2,10 +2,13 @@ package Model;
 
 import Constructor.Enums.Operator;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.util.HashSet;
 import java.util.Set;
 
+
+@EqualsAndHashCode(callSuper = true)
 @Data
 public class MethodTime extends CodeBlockTime{
 
@@ -41,7 +44,7 @@ public class MethodTime extends CodeBlockTime{
 
     @Override
     public Object clone() {
-        MethodTime methodTime = null;
+        MethodTime methodTime;
         methodTime = (MethodTime) super.clone();
         methodTime.setCallers(new HashSet<>(callers));
         methodTime.setCallees(new HashSet<>(callees));
