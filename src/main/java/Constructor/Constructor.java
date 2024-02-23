@@ -34,7 +34,7 @@ public class Constructor {
             System.out.println("Commit: "+hashCode.getHashCode());
             //add a new commitTime for each commit, for the code change during this commit
             CommitCodeChange commitTime = new CommitCodeChange(hashCode.getHashCode());
-            if(codeChange.size()>0){
+            if(!codeChange.isEmpty()){
                 commitTime.setPreCommit(codeChange.get(codeChange.size()-1));
                 codeChange.get(codeChange.size()-1).setPostCommit(commitTime);
             }else{
@@ -47,14 +47,14 @@ public class Constructor {
             if(fileList1==null){continue;}//no file changes during this commit
             Map<String, DiffFile> fileList = fileList1.entrySet().stream()
                     .filter(p -> !FileType.DELETE.equals(p.getValue().getType()))
-                    .collect(Collectors.toMap(p -> p.getKey(), p -> p.getValue()));
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
             //if refactoring is not null, separate them into three levels: package, class, method&attribute
             Refactorings refact = project.getRefactorings().get(hashCode.getHashCode());
 
             //生成ASTReader所需参数
             Map<String, String> fileContents = fileList.entrySet().stream()
-                    .collect(Collectors.toMap(p -> p.getKey(), p -> p.getValue().getContent()));
+                    .collect(Collectors.toMap(Map.Entry::getKey, p -> p.getValue().getContent()));
             Set<String> repositoryDirectories = populateDirectories(fileContents);
 
             RefactoringParser refactoringParser = new RefactoringParser();
@@ -143,19 +143,16 @@ public class Constructor {
     }
 
     private static Set<String> populateDirectories(Map<String, String> fileContents) {
-        Set<String> repositoryDirectories = new LinkedHashSet();
-        Iterator var2 = fileContents.keySet().iterator();
-
-        while(var2.hasNext()) {
-            String path = (String)var2.next();
-            String directory = new String(path);
-
-            while(directory.contains("/")) {
-                directory = directory.substring(0, directory.lastIndexOf("/"));
-                repositoryDirectories.add(directory);
+        Set<String> repositoryDirectories = new LinkedHashSet<>();
+        for(String path : fileContents.keySet()) {
+            String[] parts = path.split("/");
+            StringBuilder directory = new StringBuilder();
+            for(int i=0;i<parts.length-1;i++) {
+                directory.append(parts[i]);
+                repositoryDirectories.add(directory.toString());
+                directory.append("/");
             }
         }
-
         return repositoryDirectories;
     }
 }

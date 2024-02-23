@@ -8,9 +8,6 @@ import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
@@ -18,7 +15,6 @@ import java.util.List;
 
 @Slf4j
 public class start {
-    private static final Logger logger = LoggerFactory.getLogger(start.class);
     public static void main(String[] args){
         if (args.length < 1) {
             throw argumentException();
@@ -36,8 +32,8 @@ public class start {
         String endCommitHash = null;
         String database = "/Users/k/Desktop/teiid.sqlite3";
 
-        try (Repository repository = Git.open(new File(localPath)).getRepository()) {
-
+        try (Git git = Git.open(new File(localPath))) {
+            Repository repository = git.getRepository();
             if (option.equalsIgnoreCase("-a")) {
                 // 获取起始commit的hash值
                 startCommitHash = getStartCommitId(repository);
@@ -61,13 +57,13 @@ public class start {
             CommitMessageSaver commitMessageSaver = new CommitMessageSaver(database);
             commitMessageSaver.save(endCommitHash, startCommitHash, repository);
         } catch (GitAPIException | IOException exception) {
-            exception.printStackTrace();
+            log.error("Error processing project: " + localPath, exception);
         }
 
-        String info[] = new String[]{localPath, startCommitHash, endCommitHash};
+        String[] info = new String[]{localPath, startCommitHash, endCommitHash};
 
 //      for test：
-//        String info[] = new String[]{
+//        String[] info = new String[]{
         //RAT projects
 //                "axis-axis2-java-core 5e257a10f3d0cff2ff2572a00787d1582a706c87 82e251bd1af51b5106357772b13000cda151b97e",
 //                "derby f68f62fd81539c77a456631fbb47970ef33bc4fa 0199c2ecf5abe872f229831db89b425932421cd9", //done
@@ -113,10 +109,9 @@ public class start {
             List<CommitCodeChange> commits = constructor.getCodeChange();  // commitId对应hash值，代表在当前commit hash中，纵向
             HashMap<String, CodeBlock> mappings = constructor.getMappings();
             // codeBlockId、commitId可以唯一确定一个codeblocktime，但也有可能是没有东西的
-//        save(codeBlocks, commits);
-
-//        log.info("Constructor finished.");
-//        log.info("Start to save CommitCodeChange");
+            // save(codeBlocks, commits);
+            // log.info("Constructor finished.");
+            // log.info("Start to save CommitCodeChange");
 
             TableCreator tableCreator = new TableCreator(database);
             tableCreator.createTables();
@@ -146,7 +141,7 @@ public class start {
             System.out.println("CommitNum : " + commits.size());
             System.out.println("MappingNum : " + mappings.size());
         } catch (Exception e) {
-            logger.error("Error processing project: " + info[0], e);
+            log.error("Error processing project: " + info[0], e);
         }
     }
 
@@ -157,6 +152,7 @@ public class start {
             for (RevCommit commit : commits) {
                 endCommit = commit;
             }
+            assert endCommit != null;
             return endCommit.getId().getName();
         }
     }
@@ -181,6 +177,7 @@ public class start {
                     preCommit = commit;
                 }
             }
+            assert preCommit != null;
             return preCommit.getId().getName();
         }
     }

@@ -20,7 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 
 public class CommitMessageSaver {
-    private static final Logger logger = LoggerFactory.getLogger(MappingSaver.class);
+    private static final Logger logger = LoggerFactory.getLogger(CommitMessageSaver.class);
     private SqliteHelper helper;
 
     public CommitMessageSaver(String dbFilePath) {
