@@ -8,18 +8,23 @@ import Project.RefactoringMiner.Refactoring;
 import Project.RefactoringMiner.Refactorings;
 import Project.Utils.CommitHashCode;
 import Project.Utils.DiffFile;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
 import Project.Project;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
+import Util.JedisUtil;
+import redis.clients.jedis.Jedis;
 @Data
 public class Constructor {
+    Jedis jedis = JedisUtil.getJedis();
     Project project;
     List<CodeBlock> codeBlocks = new ArrayList<>();
     List<CommitCodeChange> codeChange = new ArrayList<>();
-    HashMap<String, CodeBlock> mappings = new HashMap<>();// mapping between signature and codeBlockID
+
 
     public Constructor(Project p) {
         project = p;
@@ -27,6 +32,7 @@ public class Constructor {
 
 
     public void start(){
+
         List<CommitHashCode> commitList = project.getCommitList();
         for(CommitHashCode hashCode: commitList){
 //            System.out.println(codeBlocks.size());
@@ -60,12 +66,12 @@ public class Constructor {
             RefactoringParser refactoringParser = new RefactoringParser();
             Map<String, String> renameCodeBlockName;
             if (commitTime.getPreCommit() != null){
-                renameCodeBlockName = refactoringParser.parse(refact, mappings);
+                renameCodeBlockName = refactoringParser.parse(refact);
             } else {
                 renameCodeBlockName = new HashMap<>();
             }
             Visitor visitor = new Visitor();
-            visitor.visit(fileContents, codeBlocks, codeChange, mappings, repositoryDirectories, fileList, renameCodeBlockName);
+            visitor.visit(fileContents, codeBlocks, codeChange, repositoryDirectories, fileList, renameCodeBlockName);
 
 
             //packageLevel: firstly refactorings, then javaParser visitor
@@ -75,7 +81,7 @@ public class Constructor {
                     List<Refactoring> packageLevelRefactorings = refact.filter("package");
                     if (!packageLevelRefactorings.isEmpty()) {
                         for(Refactoring r: packageLevelRefactorings){
-                            Operator.valueOf(r.getType().replace(" ", "_")).apply(codeBlocks, mappings, r, commitTime, null);
+                            Operator.valueOf(r.getType().replace(" ", "_")).apply(codeBlocks, r, commitTime, null);
                         }
                     }
                 }
@@ -83,7 +89,7 @@ public class Constructor {
 
 //            PackageVisitor packageVisitor = new PackageVisitor();
 //            packageVisitor.packageVisitor(fileContents, repositoryDirectories, codeBlocks, codeChange, mappings);
-            updateMappings(mappings, codeBlocks);
+            updateMappings(codeBlocks);
 
             //classLevel; firstly refactorings, then javaparser visitor
             if (refact != null && commitTime.getPreCommit() != null) {
@@ -93,7 +99,7 @@ public class Constructor {
                     List<Refactoring> classLevelRefactorings = refact.filter("class");
                     if (!classLevelRefactorings.isEmpty()) {
                         for(Refactoring r: classLevelRefactorings){
-                            Operator.valueOf(r.getType().replace(" ", "_")).apply(codeBlocks, mappings, r, commitTime, null);
+                            Operator.valueOf(r.getType().replace(" ", "_")).apply(codeBlocks, r, commitTime, null);
                         }
                     }
                 }
@@ -101,7 +107,7 @@ public class Constructor {
 
 //            ClassVisitor classVisitor = new ClassVisitor();
 //            classVisitor.classVisitor(fileContents, repositoryDirectories, codeBlocks, codeChange, mappings);
-            updateMappings(mappings, codeBlocks);
+            updateMappings(codeBlocks);
 //            //method and attribute level: firstly refactoring, then javaparser visitor
 //            if (refact != null && commitTime.getPreCommit() != null) {
 ////                System.out.println("--------MethodAndAttribute Level--------");
@@ -130,14 +136,24 @@ public class Constructor {
         }
     }
 
-    private void updateMappings(HashMap<String, CodeBlock> mappings, List<CodeBlock> codeBlocks) {
+    private void updateMappings(List<CodeBlock> codeBlocks) {
+        // 对于每个codeBlock，将其最新的signature加入到mappings中
         for(CodeBlock codeBlock: codeBlocks){
             try {
-                String signature = codeBlock.getLastHistory().getSignature();
-                mappings.put(signature, codeBlock);
+                CodeBlockTime history = codeBlock.getLastHistory();
+                if(history == null){
+                    continue;
+                }
+                String signature = history.getSignature();
+                ObjectMapper objectMapper = new ObjectMapper();
+                String codeBlockStr = objectMapper.writeValueAsString(codeBlock);
+                jedis.set(signature, codeBlockStr);
+                jedis.close();
             } catch (NullPointerException e) {
                 // 再次捕获和处理异常
                 System.err.println("Caught NullPointerException in updateMappings: " + e.getMessage());
+            } catch (JsonProcessingException e) {
+                System.err.println("Caught JsonProcessingException in updateMappings: " + e.getMessage());
             }
         }
     }

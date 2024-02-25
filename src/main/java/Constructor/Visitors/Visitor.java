@@ -19,9 +19,8 @@ public class Visitor {
     private Map<String, DiffFile> diffMap;
     private Map<String, String> renameCodeBlockName;
 
-    public void visit(Map<String, String> javaFileContents, List<CodeBlock> codeBlocks, List<CommitCodeChange> codeChange, HashMap<String, CodeBlock> mappings, Set<String> repositoryDirectories, Map<String, DiffFile> fileList, Map<String, String> renameCodeBlockName) {
+    public void visit(Map<String, String> javaFileContents, List<CodeBlock> codeBlocks, List<CommitCodeChange> codeChange, Set<String> repositoryDirectories, Map<String, DiffFile> fileList, Map<String, String> renameCodeBlockName) {
         this.codeBlocks = codeBlocks;
-        this.mappings = mappings;
         this.commitCodeChange = codeChange.get(codeChange.size() - 1); //获得当前commit的内容
         this.residualMethodMap = new HashMap<>();
         this.diffMap = fileList;

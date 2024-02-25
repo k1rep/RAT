@@ -1,19 +1,24 @@
 package Model;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 
 import Constructor.Enums.CodeBlockType;
+import Util.JedisUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
+import redis.clients.jedis.Jedis;
 
 /**
  * 横向关系（同一个commit的不同代码块之间）
  * 把项目分为多个不同的CodeBlock，分割粒度为package、class、method、attribute
  */
 @Data
-public class CodeBlock {
+public class CodeBlock implements Serializable {
     Integer codeBlockID;
     CodeBlockType type;//package, class, method, attribute
     List<CodeBlockTime> history;
@@ -42,18 +47,25 @@ public class CodeBlock {
         return history.isEmpty() ? null : history.get(history.size() - 1);
     }
 
-    public void updateMappings(HashMap<String, CodeBlock> mappings, String oldName, String newName) {
+    public void updateMappings(String oldName, String newName) {
 //        System.out.println("oldName: "+this.getType()+":"+oldName);
 //        System.out.println("newName:"+this.getType()+":" + newName);
 //        assert mappings.containsKey(oldName);
-        mappings.put(newName, this);
+        Jedis jedis = JedisUtil.getJedis();
+        ObjectMapper objectMapper = new ObjectMapper();
+        try {
+            jedis.set(newName, objectMapper.writeValueAsString(this));
+            jedis.close();
+        }catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
 //        System.out.println(newName);
 
         if (!(this.getLastHistory().getPackages() ==null)) {
             for (CodeBlock pkg : this.getLastHistory().getPackages()) {
                 String pkgName = pkg.getLastHistory().getName();
                 assert pkgName.contains(oldName);
-                pkg.updateMappings(mappings, pkgName, pkgName.replace(oldName, newName));
+                pkg.updateMappings(pkgName, pkgName.replace(oldName, newName));
             }
         }
         if (!(this.getLastHistory().getClasses()==null)) {
@@ -61,7 +73,7 @@ public class CodeBlock {
 //            this.getLastHistory().getClasses().forEach(e->System.out.println("classes:"+e.getLastHistory().getName()));
             for (CodeBlock classBlock : this.getLastHistory().getClasses()) {
                 String className = classBlock.getLastHistory().getName();
-                classBlock.updateMappings(mappings, oldName+"."+className, newName+"."+className);
+                classBlock.updateMappings(oldName+"."+className, newName+"."+className);
             }
         }
         if(!(this.getLastHistory().getMethods()==null)){
@@ -73,7 +85,7 @@ public class CodeBlock {
 //                System.out.println("methodType: "+methodBlock.getLastHistory().getRefactorType());
 //                System.out.println("methodSig: "+methodBlock.getLastHistory().getSignature());
 //                methodBlock.getHistory().forEach(e->System.out.println("methodRefact: "+e.getRefactorType()+": "+e.getName()));
-                methodBlock.updateMappings(mappings, oldName+":"+methodName, newName+":"+methodName);
+                methodBlock.updateMappings(oldName+":"+methodName, newName+":"+methodName);
             }
         }
         if(!(this.getLastHistory().getAttributes()==null)){
@@ -87,7 +99,7 @@ public class CodeBlock {
 //                System.out.println("attriSig: "+attriBlock.getLastHistory().getSignature());
 //                attriBlock.getHistory().forEach(e->System.out.println("AttriRefactoring: "+e.getRefactorType()+" "+"AttriSig: "+e.getSignature()));
 
-                attriBlock.updateMappings(mappings, oldName+":"+attriName, newName+":"+attriName);
+                attriBlock.updateMappings(oldName+":"+attriName, newName+":"+attriName);
             }
         }
 

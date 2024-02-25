@@ -107,7 +107,7 @@ public class start {
             constructor.start();// start code analysis
             List<CodeBlock> codeBlocks = constructor.getCodeBlocks();  //
             List<CommitCodeChange> commits = constructor.getCodeChange();  // commitId对应hash值，代表在当前commit hash中，纵向
-            HashMap<String, CodeBlock> mappings = constructor.getMappings();
+
             // codeBlockId、commitId可以唯一确定一个codeblocktime，但也有可能是没有东西的
             // save(codeBlocks, commits);
             // log.info("Constructor finished.");
@@ -122,7 +122,7 @@ public class start {
             commitCodeChangeSaver.close();
 
             MappingSaver mappingSaver = new MappingSaver(database);
-            mappingSaver.save(mappings);
+            mappingSaver.save();
             mappingSaver.close();
 
 //        log.info("Start to save CodeBlock");
@@ -139,7 +139,6 @@ public class start {
             System.out.println("CodeBlockTimeNum : " + x);
             System.out.println("CodeBlockNum : " + codeBlocks.size());
             System.out.println("CommitNum : " + commits.size());
-            System.out.println("MappingNum : " + mappings.size());
         } catch (Exception e) {
             log.error("Error processing project: " + info[0], e);
         }

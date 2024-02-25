@@ -1,14 +1,19 @@
 package Persistence;
 
 import Model.CodeBlock;
+import Util.JedisUtil;
 import Util.sqlite.SqliteHelper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import redis.clients.jedis.Jedis;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public class MappingSaver {
     private static final Logger logger = LoggerFactory.getLogger(MappingSaver.class);
@@ -25,18 +30,21 @@ public class MappingSaver {
         helper.destroyed();
     }
 
-    public void save(HashMap<String, CodeBlock> mapping) {
+    public void save() {
         try {
             PreparedStatement preparedStatement = helper.getPreparedStatement("insert into Mapping values(?,?);");
-            for (String key : mapping.keySet()) {
-                CodeBlock codeBlock = mapping.get(key);
+            Jedis jedis = JedisUtil.getJedis();
+            Set<String> keys = jedis.keys("*");
+            ObjectMapper objectMapper = new ObjectMapper();
+            for(String key : keys) {
+                CodeBlock codeBlock = objectMapper.readValue(jedis.get(key), CodeBlock.class);
                 preparedStatement.setString(1,key);
                 preparedStatement.setInt(2,codeBlock.getCodeBlockID());
                 preparedStatement.addBatch();
             }
             helper.executePreparedStatement(preparedStatement);
             helper.destroyed();  // 手动关闭连接
-        } catch (SQLException | ClassNotFoundException e) {
+        } catch (SQLException | ClassNotFoundException | JsonProcessingException e) {
             logger.error(e.toString());
         }
     }

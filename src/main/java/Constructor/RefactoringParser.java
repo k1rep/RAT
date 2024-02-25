@@ -6,6 +6,10 @@ import Model.*;
 import Project.RefactoringMiner.Refactoring;
 import Project.RefactoringMiner.Refactorings;
 import Project.RefactoringMiner.SideLocation;
+import Util.JedisUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import redis.clients.jedis.Jedis;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -16,7 +20,7 @@ import static Constructor.Utils.*;
 import static Constructor.Utils.defaultPackage;
 
 public class RefactoringParser {
-    public Map<String, String> parse(Refactorings refactorings, HashMap<String, CodeBlock> mappings){
+    public Map<String, String> parse(Refactorings refactorings){
         Map<String, String> renameCodeBlockName = new HashMap<>();
         if(refactorings == null){
             return renameCodeBlockName;
@@ -24,7 +28,7 @@ public class RefactoringParser {
 
         List<Refactoring> refactoringList = refactorings.getRefactorings();
         for(Refactoring r: refactoringList){
-            RenameOperator.valueOf(r.getType().replace(" ", "_")).apply(renameCodeBlockName, r, mappings);
+            RenameOperator.valueOf(r.getType().replace(" ", "_")).apply(renameCodeBlockName, r);
         }
         return renameCodeBlockName;
     }
@@ -33,18 +37,19 @@ public class RefactoringParser {
 enum RenameOperator {
     Rename_Package {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
+            Jedis jedis = JedisUtil.getJedis();
             String[] des = r.getDescription().split(" ");
             String oldPkgName = des[2];
             String newPkgName = des[4];
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
-            if (!mappings.containsKey(oldPkgName)) {
+            if (!jedis.exists(oldPkgName)) {
                 String firstClassName = left.get(0).getCodeElement();
                 oldPkgName = firstClassName.substring(0, firstClassName.lastIndexOf("."));
             }
             renameCodeBlockName.put(newPkgName, oldPkgName);
-
+            jedis.close();
             assert left.size() == right.size();
             for (int i = 0; i < left.size(); i++) {
                 String oldClassSig = left.get(i).getCodeElement();
@@ -55,7 +60,7 @@ enum RenameOperator {
     },
     Move_Package {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
             assert left.size() == right.size();
@@ -69,7 +74,7 @@ enum RenameOperator {
     },
     Split_Package {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             //todo 没有了package的继承关系
             //左右一个一个对照着来
             List<SideLocation> left = r.getLeftSideLocations();
@@ -84,7 +89,7 @@ enum RenameOperator {
     },
     Merge_Package {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
             assert left.size() == right.size();
@@ -98,7 +103,7 @@ enum RenameOperator {
     Change_Type_Declaration_Kind {
 
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             assert r.getLeftSideLocations().size() == r.getRightSideLocations().size();
             assert r.getLeftSideLocations().size() == 1;
             String nameOld = r.getLeftSideLocations().get(0).getCodeElement();
@@ -112,20 +117,20 @@ enum RenameOperator {
     Collapse_Hierarchy {
 
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
 
         }
     },
     Extract_Superclass {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
 
         }
     },
     Extract_Interface {
         //done 文件重命名 这个有点特殊
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             //左边、右边前几个分别是original类的声明，右边最后一个是新的interface
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
@@ -140,14 +145,14 @@ enum RenameOperator {
     Extract_Class {
 
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
 
         }
     },
     Extract_Subclass {
         @Override
         // 跟extract class几乎差不多
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
             assert left.size() == 1;
@@ -165,40 +170,47 @@ enum RenameOperator {
     Merge_Class {//merge methods & attributes in two or more classes to one new class
 
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r){
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
             assert right.size() == 1;
             String newSig = right.get(0).getCodeElement();
-
+            Jedis jedis = JedisUtil.getJedis();
             for (int i = 0; i < left.size(); i++) {
                 String oldSig = left.get(i).getCodeElement();
-                assert mappings.containsKey(oldSig);
-                CodeBlock oldClassBlock = mappings.get(oldSig);
-                ClassTime oldClassTime = (ClassTime) oldClassBlock.getLastHistory();
+                assert jedis.exists(oldSig);
+                String oldClassStr = jedis.get(oldSig);
+                ObjectMapper objectMapper = new ObjectMapper();
+                try {
+                    CodeBlock oldClassBlock = objectMapper.readValue(oldClassStr, CodeBlock.class);
+                    ClassTime oldClassTime = (ClassTime) oldClassBlock.getLastHistory();
 
-                //change sons' parentBlock
-                if (!(oldClassTime.getClasses() == null)) {
-                    for (CodeBlock sonBlock : oldClassTime.getClasses()) {
-                        renameCodeBlockName.put(sonBlock.getLastHistory().getSignature().replace(oldSig, newSig), sonBlock.getLastHistory().getSignature());
+                    //change sons' parentBlock
+                    if (!(oldClassTime.getClasses() == null)) {
+                        for (CodeBlock sonBlock : oldClassTime.getClasses()) {
+                            renameCodeBlockName.put(sonBlock.getLastHistory().getSignature().replace(oldSig, newSig), sonBlock.getLastHistory().getSignature());
+                        }
                     }
-                }
-                if (!(oldClassTime.getMethods() == null)) {
-                    for (CodeBlock sonBlock : oldClassTime.getMethods()) {
-                        renameCodeBlockName.put(sonBlock.getLastHistory().getSignature().replace(oldSig, newSig), sonBlock.getLastHistory().getSignature());
+                    if (!(oldClassTime.getMethods() == null)) {
+                        for (CodeBlock sonBlock : oldClassTime.getMethods()) {
+                            renameCodeBlockName.put(sonBlock.getLastHistory().getSignature().replace(oldSig, newSig), sonBlock.getLastHistory().getSignature());
+                        }
                     }
-                }
-                if (!(oldClassTime.getAttributes() == null)) {
-                    for (CodeBlock sonBlock : oldClassTime.getAttributes()) {
-                        renameCodeBlockName.put(sonBlock.getLastHistory().getSignature().replace(oldSig, newSig), sonBlock.getLastHistory().getSignature());
+                    if (!(oldClassTime.getAttributes() == null)) {
+                        for (CodeBlock sonBlock : oldClassTime.getAttributes()) {
+                            renameCodeBlockName.put(sonBlock.getLastHistory().getSignature().replace(oldSig, newSig), sonBlock.getLastHistory().getSignature());
+                        }
                     }
+                }catch (JsonProcessingException e) {
+                    e.printStackTrace();
                 }
             }
+            jedis.close();
         }
     },
     Move_Class {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             //update class, class.father, class.son
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
@@ -213,7 +225,7 @@ enum RenameOperator {
     Rename_Class {
         @Override
         // update class name, update mappings of methods, attributes, etc.
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
             assert left.size() == right.size();
@@ -223,14 +235,15 @@ enum RenameOperator {
             String newName = right.get(0).getCodeElement();
             oldName = defaultPackage(oldName);
             newName = defaultPackage(newName);
-
-            assert mappings.containsKey(oldName);
+            Jedis jedis = JedisUtil.getJedis();
+            assert jedis.exists(oldName);
             renameCodeBlockName.put(newName, oldName);
+            jedis.close();
         }
     },
     Move_And_Rename_Class {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
             assert left.size() == right.size();
@@ -243,7 +256,7 @@ enum RenameOperator {
     },
     Extract_Method {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String className = defaultPackage(r.getLastClassName());
             HashMap<String, String> oldMethod = r.getLeftSideLocations().get(0).parseMethodDeclaration();//parse the method name
             HashMap<String, String> oldMethodNew;
@@ -256,7 +269,7 @@ enum RenameOperator {
     },
     Inline_Method {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String className = defaultPackage(r.getLastClassName());
             HashMap<String, String> methodNameOld = r.getLeftSideLocations().get(r.getRightSideLocations().size()).parseMethodDeclaration();
             HashMap<String, String> methodNameNew = r.getRightSideLocations().get(0).parseMethodDeclaration();
@@ -268,7 +281,7 @@ enum RenameOperator {
     },
     Pull_Up_Method {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String oldClass = defaultPackage(r.getFirstClassName());
             String newClass = defaultPackage(r.getLastClassName());
 
@@ -277,20 +290,22 @@ enum RenameOperator {
             HashMap<String, String> oldMethod = r.getLeftSideLocations().get(0).parseMethodDeclaration();//parse the method name
             HashMap<String, String> newMethod = r.getRightSideLocations().get(0).parseMethodDeclaration();
 
-            assert mappings.containsKey(oldClass + ":" + oldMethod.get("MN"));
-            assert mappings.containsKey(oldClass);
+            Jedis jedis = JedisUtil.getJedis();
+            assert jedis.exists(oldClass + ":" + oldMethod.get("MN"));
+            assert jedis.exists(oldClass);
             renameCodeBlockName.put(newClass + ":" + newMethod.get("MN"), oldClass + ":" + oldMethod.get("MN"));
+            jedis.close();
         }
     },
     Push_Down_Method {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
 
         }
     },
     Extract_And_Move_Method {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String oldClassName = defaultPackage(r.getFirstClassName());
             assert oldClassName.contains(".");
             HashMap<String, String> oldMethod = r.getLeftSideLocations().get(0).parseMethodDeclaration();//parse the method name
@@ -303,7 +318,7 @@ enum RenameOperator {
     },
     Move_And_Inline_Method {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String oldClassName = r.getFirstClassName();
             String[] tmp = r.getDescription().substring(0, r.getDescription().indexOf(" & ")).split(" ");
             String newClassName = tmp[tmp.length - 1];
@@ -322,7 +337,7 @@ enum RenameOperator {
     Move_And_Rename_Method {//跨文件
 
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String oldClass = defaultPackage(r.getFirstClassName());
             String newClass = defaultPackage(r.getLastClassName());
             List<SideLocation> left = r.getLeftSideLocations();
@@ -341,7 +356,7 @@ enum RenameOperator {
     },
     Move_Method {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             //find method, oldclass and newclass from mappings, change parentBlock from oldclass to newClass
             String oldClass = defaultPackage(r.getFirstClassName());
             String newClass = defaultPackage(r.getLastClassName());
@@ -362,7 +377,7 @@ enum RenameOperator {
     Change_Return_Type { //trival 只需要修改返回类型 一般不跨文件
 
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String className = defaultPackage(r.getLastClassName());
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
@@ -376,7 +391,7 @@ enum RenameOperator {
     },
     Rename_Method {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String className = defaultPackage(r.getLastClassName());
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
@@ -395,7 +410,7 @@ enum RenameOperator {
 
         @Override
         //把方法中的一个变量 变为方法的参数 不跨文件，仅需要修改方法的名字
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String className = defaultPackage(r.getLastClassName());
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
@@ -412,7 +427,7 @@ enum RenameOperator {
     Merge_Parameter {//把一个方法的参数进行合并，但是可能会有移动 左右两边的最后一个 分别是旧新方法的声明
 
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String className = defaultPackage(r.getLastClassName());
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
@@ -427,7 +442,7 @@ enum RenameOperator {
     Split_Parameter {//method name change, parameterList change 左右两边的最后一个分别是旧、新方法的声明
 
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String className = defaultPackage(r.getLastClassName());
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
@@ -440,7 +455,7 @@ enum RenameOperator {
     },
     Change_Parameter_Type {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String className = defaultPackage(r.getLastClassName());
             System.out.println(r.getDescription());
             List<SideLocation> left = r.getLeftSideLocations();
@@ -455,7 +470,7 @@ enum RenameOperator {
     },
     Add_Parameter {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String className = defaultPackage(r.getLastClassName());
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
@@ -468,7 +483,7 @@ enum RenameOperator {
     },
     Remove_Parameter {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String className = defaultPackage(r.getLastClassName());
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
@@ -483,7 +498,7 @@ enum RenameOperator {
     Reorder_Parameter {
 
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String className = defaultPackage(r.getLastClassName());
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
@@ -498,7 +513,7 @@ enum RenameOperator {
     Parameterize_Attribute {
 
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String className = defaultPackage(r.getLastClassName());
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
@@ -509,7 +524,8 @@ enum RenameOperator {
             HashMap<String, String> oldMethod = left.get(1).parseMethodDeclaration();
             HashMap<String, String> newMethod = right.get(1).parseMethodDeclaration();
 
-            assert mappings.containsKey(className + ":" + oldAttri);
+            Jedis jedis = JedisUtil.getJedis();
+            assert jedis.exists(className + ":" + oldAttri);
 
             renameCodeBlockName.put(className + ":" + newAttri, className + ":" + oldAttri);
             renameCodeBlockName.put(className + ":" + newMethod.get("MN"), className + ":" + oldMethod.get("MN"));
@@ -518,7 +534,7 @@ enum RenameOperator {
     Pull_Up_Attribute {//把子类中的属性 移到父类中 跨文件
 
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String oldClass = defaultPackage(r.getFirstClassName());
             String newClass = defaultPackage(r.getLastClassName());
             assert r.getRightSideLocations().size() == 1;
@@ -530,7 +546,7 @@ enum RenameOperator {
     },
     Push_Down_Attribute {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String oldClass = defaultPackage(r.getFirstClassName());
             String newClass = defaultPackage(r.getLastClassName());
             List<SideLocation> left = r.getLeftSideLocations();
@@ -548,7 +564,7 @@ enum RenameOperator {
     },
     Move_Attribute {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String oldClass = defaultPackage(r.getFirstClassName());
             String newClass = defaultPackage(r.getLastClassName());
             List<SideLocation> left = r.getLeftSideLocations();
@@ -565,7 +581,7 @@ enum RenameOperator {
     },
     Rename_Attribute {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String className = defaultPackage(r.getLastClassName());
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
@@ -579,19 +595,19 @@ enum RenameOperator {
     },
     Merge_Attribute {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
 
         }
     },
     Split_Attribute {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
 
         }
     },
     Change_Attribute_Type {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String className = defaultPackage(r.getLastClassName());
             List<SideLocation> left = r.getLeftSideLocations();
             List<SideLocation> right = r.getRightSideLocations();
@@ -606,27 +622,27 @@ enum RenameOperator {
     Extract_Attribute {//涉及增加新的attribute
 
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
 
         }
     },
     Encapsulate_Attribute {
 
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
 
         }
     },
     Inline_Attribute {//remove_attribute, 去掉属性，直接使用属性的值,从旧的类中移除
 
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
 
         }
     },
     Move_And_Rename_Attribute {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
             String oldClass = defaultPackage(r.getFirstClassName());
             String newClass = defaultPackage(r.getLastClassName());
             List<SideLocation> left = r.getLeftSideLocations();
@@ -645,19 +661,19 @@ enum RenameOperator {
     },
     Replace_Attribute_With_Variable {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
 
         }
     },
     Replace_Anonymous_With_Lambda {
         @Override
-        public void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings) {
+        public void apply(Map<String, String> renameCodeBlockName, Refactoring r) {
 
         }
     },
     ;
 
-    public abstract void apply(Map<String, String> renameCodeBlockName, Refactoring r, HashMap<String, CodeBlock> mappings);
+    public abstract void apply(Map<String, String> renameCodeBlockName, Refactoring r);
 
 }
 
