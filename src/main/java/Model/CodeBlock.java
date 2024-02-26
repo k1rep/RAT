@@ -35,15 +35,16 @@ public class CodeBlock implements Serializable {
 
     public void addHistory(CodeBlockTime cbt) {
         //done add
-        CodeBlockTime lastHistory = this.getLastHistory();
-        if (lastHistory == null) {//如果history是空
+        if (this.getLastHistory() == null) {//如果history是空
+            history.add(cbt);
             cbt.setPre(null);
+            cbt.setOwner(this);
         } else {//如果不是空
-            lastHistory.setPost(cbt);
-            cbt.setPre(lastHistory);
+            this.getLastHistory().setPost(cbt);
+            cbt.setPre(this.getLastHistory());
+            history.add(cbt);
+            cbt.setOwner(this);
         }
-        cbt.setOwner(this);
-        history.add(cbt);
         //获取最后一个history，更新pre post
     }
 
