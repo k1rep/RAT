@@ -30,7 +30,7 @@ public enum Operator {
                 jedis.set(name, codeBlockStr);//更新mapping， codeblocks， commitcodechange
                 PackageTime packageTime = new PackageTime(name, commitTime, Operator.Add_Package, codeBlock);
                 codeBlocks.add(codeBlock);
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             jedis.close();
@@ -61,7 +61,7 @@ public enum Operator {
                     jedis.set(signature, codeBlockStr);
                     codeBlocks.add(codeBlock);
                 }
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             jedis.close();
@@ -150,7 +150,7 @@ public enum Operator {
                 jedis.set(newPkgName, objectMapper.writeValueAsString(pkgBlock));
                 System.out.println(r.getType());
                 jedis.close();
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
         }
@@ -271,7 +271,7 @@ public enum Operator {
                     fatherTimeNew.getClasses().add(classBlock);
                     pkgTimeOld.getClasses().remove(classBlock);
                 }
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             jedis.close();
@@ -394,7 +394,7 @@ public enum Operator {
                     classTime.setRefactorType(Operator.Split_Package);
                     classTime.setParentCodeBlock(newFather);
                 }
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             jedis.close();
@@ -504,7 +504,7 @@ public enum Operator {
                     classTime.setRefactorType(Operator.Merge_Package);
                     classTime.setParentCodeBlock(newFather);
                 }
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             jedis.close();
@@ -534,7 +534,7 @@ public enum Operator {
                 jedis.set(nameNew, objectMapper.writeValueAsString(classBlock));
                 classTime.setTime(commitTime);
                 classTime.setRefactorType(Operator.Change_Type_Declaration_Kind);
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             jedis.close();
@@ -593,7 +593,7 @@ public enum Operator {
                     oldClassTime.getDerivee().add(classTime);
                     classTime.getDeriver().add(oldClassTime);
                 }
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             jedis.close();
@@ -635,7 +635,7 @@ public enum Operator {
                     originalClassTime.getDerivee().add(classTime);
                     classTime.getDeriver().add(originalClassTime);
                 }
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             jedis.close();
@@ -678,7 +678,7 @@ public enum Operator {
                 oldClassTime.setRefactorType(Extract_Class);
                 oldClassTime.getDerivee().add(classTime);
                 classTime.getDeriver().add(oldClassTime);
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             jedis.close();
@@ -758,7 +758,7 @@ public enum Operator {
                 oldClassTime.setRefactorType(Extract_Class);
                 oldClassTime.getDerivee().add(classTime);
                 classTime.getDeriver().add(oldClassTime);
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
 
@@ -869,7 +869,7 @@ public enum Operator {
                     oldClassTime.setMethods(new HashSet<>());
                     oldClassTime.setAttributes(new HashSet<>());
                 }
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
 
@@ -935,7 +935,7 @@ public enum Operator {
 
             }catch(NullPointerException e) {
                 e.printStackTrace();
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -970,7 +970,7 @@ public enum Operator {
                     System.out.println(oldName);
                 }
                 System.out.println(r.getType());
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
 //            System.out.println(commitTime.getCommitID());
@@ -997,43 +997,42 @@ public enum Operator {
             CodeBlock classBlock = null;
             try {
                 classBlock = objectMapper.readValue(jedis.get(oldSig), CodeBlock.class);
-            } catch (JsonProcessingException e) {
-                e.printStackTrace();
-            }
-            //update mappings
-            classBlock.updateMappings(oldSig, tmp);
-            classBlock.updateMappings(oldSig, tmp1);
-            classBlock.updateMappings(oldSig, newSig);
 
-            ClassTime classTime = (ClassTime) classBlock.getLastHistory();
-            //update classTime
-            classTime.setName(newSig.substring(newSig.lastIndexOf(".") + 1));
-            classTime.setTime(commitTime);
-            classTime.setRefactorType(Operator.Move_And_Rename_Class);
+                //update mappings
+                classBlock.updateMappings(oldSig, tmp);
+                classBlock.updateMappings(oldSig, tmp1);
+                classBlock.updateMappings(oldSig, newSig);
 
-            //move class from old package to new package
-            //old Father
-            CodeBlock oldFather = classTime.getParentCodeBlock();
+                ClassTime classTime = (ClassTime) classBlock.getLastHistory();
+                //update classTime
+                classTime.setName(newSig.substring(newSig.lastIndexOf(".") + 1));
+                classTime.setTime(commitTime);
+                classTime.setRefactorType(Operator.Move_And_Rename_Class);
 
-            CodeBlock newFather;
-            CodeBlockTime newFatherTime;
-            try {
+                //move class from old package to new package
+                //old Father
+                CodeBlock oldFather = classTime.getParentCodeBlock();
+
+                CodeBlock newFather;
+                CodeBlockTime newFatherTime;
+
                 newFather = objectMapper.readValue(jedis.get(sig2Father(newSig)), CodeBlock.class);
 
-            newFatherTime = (CodeBlockTime) newFather.getLastHistory();
-            newFatherTime.setTime(commitTime);
-            newFatherTime.setRefactorType(Operator.Move_And_Rename_Class);
-            } catch (JsonProcessingException e) {
-                e.printStackTrace();
-            }
-            try {
-                //update old father
-                CodeBlockTime oldFatherTime = (CodeBlockTime) oldFather.getLastHistory();
-                oldFatherTime.setTime(commitTime);
-                oldFatherTime.setRefactorType(Operator.Move_And_Rename_Class);
-                oldFatherTime.getClasses().remove(classBlock);
+                newFatherTime = (CodeBlockTime) newFather.getLastHistory();
+                newFatherTime.setTime(commitTime);
+                newFatherTime.setRefactorType(Operator.Move_And_Rename_Class);
 
-            }catch(NullPointerException e){
+                try {
+                    //update old father
+                    CodeBlockTime oldFatherTime = (CodeBlockTime) oldFather.getLastHistory();
+                    oldFatherTime.setTime(commitTime);
+                    oldFatherTime.setRefactorType(Operator.Move_And_Rename_Class);
+                    oldFatherTime.getClasses().remove(classBlock);
+
+                } catch (NullPointerException e) {
+                    e.printStackTrace();
+                }
+            } catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -1083,7 +1082,7 @@ public enum Operator {
                 oldMethodTime.setRefactorType(Operator.Extract_Method);
                 oldMethodTime.getDerivee().add(methodTime);
                 methodTime.getDeriver().add(oldMethodTime);
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 throw new RuntimeException(e);
             }
             System.out.println(r.getType());
@@ -1108,25 +1107,25 @@ public enum Operator {
             CodeBlock inlinedMethodBlock = null;
             try {
                 inlinedMethodBlock = objectMapper.readValue(jedis.get(className + ":" + inlinedMethod.get("MN")), CodeBlock.class);
-            } catch (JsonProcessingException e) {
+            } catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             CodeBlock classBlock = null;
             try {
                 classBlock = objectMapper.readValue(jedis.get(className), CodeBlock.class);
-            } catch (JsonProcessingException e) {
+            } catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             CodeBlock targetMethodBlock = null;
             try {
                 targetMethodBlock = objectMapper.readValue(jedis.get(className + ":" + methodNameOld.get("MN")), CodeBlock.class);
-            } catch (JsonProcessingException e) {
+            } catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             if (!methodNameNew.get("MN").equals(methodNameOld.get("MN"))) {
                 try {
                     jedis.set(className + ":" + methodNameNew.get("MN"), objectMapper.writeValueAsString(targetMethodBlock));
-                } catch (JsonProcessingException e) {
+                } catch (JsonProcessingException | IllegalArgumentException e) {
                     e.printStackTrace();
                 }
             }
@@ -1202,7 +1201,7 @@ public enum Operator {
                 newClassTimeNew.setTime(commitTime);
                 newClassTimeNew.setRefactorType(Operator.Pull_Up_Method);
                 newClassTimeNew.getMethods().add(methodBlock);
-            } catch (JsonProcessingException e) {
+            } catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -1251,7 +1250,7 @@ public enum Operator {
                 newClassTimeNew.setTime(commitTime);
                 newClassTimeNew.setRefactorType(Operator.Push_Down_Method);
                 newClassTimeNew.getMethods().add(methodBlockNew);
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -1290,7 +1289,7 @@ public enum Operator {
                 oldMethodTime.setRefactorType(Operator.Extract_Method);
                 oldMethodTime.getDerivee().add(methodTime);
                 methodTime.getDeriver().add(oldMethodTime);
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -1351,7 +1350,7 @@ public enum Operator {
                 targetMethodTime.setRefactorType(Operator.Move_And_Inline_Method);
                 targetMethodTime.getDeriver().add(inlinedMethodTime);
                 inlinedMethodTime.getDerivee().add(targetMethodTime);
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -1412,7 +1411,7 @@ public enum Operator {
                 newClassTimeNew.setTime(commitTime);
                 newClassTimeNew.setRefactorType(Operator.Move_And_Rename_Method);
                 newClassTimeNew.getMethods().add(methodBlock);
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -1470,7 +1469,7 @@ public enum Operator {
                 newClassTimeNew.setTime(commitTime);
                 newClassTimeNew.setRefactorType(Operator.Move_Method);
                 newClassTimeNew.getMethods().add(methodBlock);
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -1504,7 +1503,7 @@ public enum Operator {
                 methodTimeNew.setTime(commitTime);
                 methodTimeNew.setRefactorType(Operator.Change_Return_Type);
                 jedis.set(newSig, objectMapper.writeValueAsString(methodBlock));
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -1535,7 +1534,7 @@ public enum Operator {
                 methodTimeNew.setTime(commitTime);
                 methodTimeNew.setRefactorType(Operator.Rename_Method);
                 jedis.set(newSig, objectMapper.writeValueAsString(codeBlock));
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -1573,7 +1572,7 @@ public enum Operator {
                     e.printStackTrace();
                 }
                 jedis.set(newSig, objectMapper.writeValueAsString(methodBlock));
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -1607,7 +1606,7 @@ public enum Operator {
                     e.printStackTrace();
                 }
                 jedis.set(newSig, objectMapper.writeValueAsString(codeBlock));
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -1641,7 +1640,7 @@ public enum Operator {
                     e.printStackTrace();
                 }
                 jedis.set(newSig, objectMapper.writeValueAsString(codeBlock));
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -1672,7 +1671,7 @@ public enum Operator {
             methodTime.setTime(commitTime);
             methodTime.setRefactorType(Operator.Change_Parameter_Type);
             methodTime.setParameters(newMethod.get("PA"));//update parameterType
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
 //            todo parameterType
@@ -1706,7 +1705,7 @@ public enum Operator {
             methodTime.setTime(commitTime);
             methodTime.setRefactorType(Operator.Add_Parameter);
             methodTime.setParameters(newMethod.get("PA"));//update parameterType//todo return type
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -1737,7 +1736,7 @@ public enum Operator {
                 methodTime.setTime(commitTime);
                 methodTime.setRefactorType(Operator.Remove_Parameter);
                 methodTime.setParameters(newMethod.get("PA"));//update parameterType
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -1767,7 +1766,7 @@ public enum Operator {
                 methodTimeNew.setTime(commitTime);
                 methodTimeNew.setRefactorType(Operator.Reorder_Parameter);
                 jedis.set(newSig, objectMapper.writeValueAsString(codeBlock));
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -1808,7 +1807,7 @@ public enum Operator {
                 methodTimeNew.setTime(commitTime);
                 methodTimeNew.setRefactorType(Operator.Parameterize_Attribute);
                 jedis.set(className + ":" + newMethod.get("MN"), objectMapper.writeValueAsString(methodBlock));
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -1857,7 +1856,7 @@ public enum Operator {
                 newClassTimeNew.setTime(commitTime);
                 newClassTimeNew.setRefactorType(Operator.Pull_Up_Attribute);
                 newClassTimeNew.getAttributes().add(attriBlock);
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -1912,7 +1911,7 @@ public enum Operator {
                 newClassTimeNew.setTime(commitTime);
                 newClassTimeNew.setRefactorType(Operator.Push_Down_Method);
                 newClassTimeNew.getAttributes().add(attriBlock);
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -1996,7 +1995,7 @@ public enum Operator {
                 attributeTime.setName(newName);
                 attributeTime.setTime(commitTime);
                 attributeTime.setRefactorType(Operator.Rename_Attribute);
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -2073,7 +2072,7 @@ public enum Operator {
                     attriTime.getDeriver().add(oldAttriTime);
                     oldAttriTime.getDerivee().add(attriTime);
                 }
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
 
@@ -2104,7 +2103,7 @@ public enum Operator {
                 attributeTime.setName(newName);
                 attributeTime.setTime(commitTime);
                 attributeTime.setRefactorType(Operator.Change_Attribute_Type);
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -2128,7 +2127,7 @@ public enum Operator {
                 ;
                 AttributeTime attributeTime = (AttributeTime) attriBlock.getLastHistory();
                 attributeTime.setRefactorType(Operator.Extract_Attribute);
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -2159,7 +2158,7 @@ public enum Operator {
                     MethodTime methodTime = (MethodTime) methodBlock.getLastHistory();
                     methodTime.setRefactorType(Operator.Encapsulate_Attribute);
                 }
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -2188,7 +2187,7 @@ public enum Operator {
                 AttributeTime attributeTime = (AttributeTime) attriBlock.getLastHistory();
                 attributeTime.setTime(commitTime);
                 attributeTime.setRefactorType(Operator.Inline_Attribute);
-            }catch (JsonProcessingException e) {
+            }catch (JsonProcessingException | IllegalArgumentException e) {
                 e.printStackTrace();
             }
             System.out.println(r.getType());
@@ -2243,7 +2242,7 @@ public enum Operator {
                 newClassTimeNew.setTime(commitTime);
                 newClassTimeNew.setRefactorType(Operator.Move_Attribute);
                 newClassTimeNew.getAttributes().add(attriBlock);
-            }catch (JsonProcessingException e){
+            }catch (JsonProcessingException | IllegalArgumentException e){
                 e.printStackTrace();
             }
             System.out.println(r.getType());

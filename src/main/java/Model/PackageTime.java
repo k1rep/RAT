@@ -2,10 +2,12 @@ package Model;
 
 import Constructor.Enums.Operator;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
 import java.util.*;
 
+@EqualsAndHashCode(callSuper = true)
 @Data
 public class PackageTime extends CodeBlockTime implements Cloneable, Serializable {
     Set<CodeBlock> classes = new HashSet<>();

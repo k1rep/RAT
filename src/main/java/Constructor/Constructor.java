@@ -73,36 +73,43 @@ public class Constructor {
             Visitor visitor = new Visitor();
             visitor.visit(fileContents, codeBlocks, codeChange, repositoryDirectories, fileList, renameCodeBlockName);
 
-
-            //packageLevel: firstly refactorings, then javaParser visitor
-            if (refact != null && commitTime.getPreCommit() != null) {
+            try {
+                //packageLevel: firstly refactorings, then javaParser visitor
+                if (refact != null && commitTime.getPreCommit() != null) {
 //                System.out.println("--------Package Level--------");
-                if (!refact.getRefactorings().isEmpty()) {
-                    List<Refactoring> packageLevelRefactorings = refact.filter("package");
-                    if (!packageLevelRefactorings.isEmpty()) {
-                        for(Refactoring r: packageLevelRefactorings){
-                            Operator.valueOf(r.getType().replace(" ", "_")).apply(codeBlocks, r, commitTime, null);
+                    if (!refact.getRefactorings().isEmpty()) {
+                        List<Refactoring> packageLevelRefactorings = refact.filter("package");
+                        if (!packageLevelRefactorings.isEmpty()) {
+                            for (Refactoring r : packageLevelRefactorings) {
+                                Operator.valueOf(r.getType().replace(" ", "_")).apply(codeBlocks, r, commitTime, null);
+                            }
                         }
                     }
                 }
+            }catch (Exception e){
+                System.err.println("Caught Exception in packageLevel: " + e.getMessage());
             }
 
 //            PackageVisitor packageVisitor = new PackageVisitor();
 //            packageVisitor.packageVisitor(fileContents, repositoryDirectories, codeBlocks, codeChange, mappings);
             updateMappings(codeBlocks);
 
-            //classLevel; firstly refactorings, then javaparser visitor
-            if (refact != null && commitTime.getPreCommit() != null) {
+            try {
+                //classLevel; firstly refactorings, then javaparser visitor
+                if (refact != null && commitTime.getPreCommit() != null) {
 //                System.out.println("--------Class Level--------");
-                if (!refact.getRefactorings().isEmpty()) {
-                    // class level
-                    List<Refactoring> classLevelRefactorings = refact.filter("class");
-                    if (!classLevelRefactorings.isEmpty()) {
-                        for(Refactoring r: classLevelRefactorings){
-                            Operator.valueOf(r.getType().replace(" ", "_")).apply(codeBlocks, r, commitTime, null);
+                    if (!refact.getRefactorings().isEmpty()) {
+                        // class level
+                        List<Refactoring> classLevelRefactorings = refact.filter("class");
+                        if (!classLevelRefactorings.isEmpty()) {
+                            for (Refactoring r : classLevelRefactorings) {
+                                Operator.valueOf(r.getType().replace(" ", "_")).apply(codeBlocks, r, commitTime, null);
+                            }
                         }
                     }
                 }
+            }catch (Exception e){
+                System.err.println("Caught Exception in classLevel: " + e.getMessage());
             }
 
 //            ClassVisitor classVisitor = new ClassVisitor();

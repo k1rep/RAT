@@ -8,6 +8,7 @@ import java.util.Objects;
 
 import Constructor.Enums.CodeBlockType;
 import Util.JedisUtil;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
@@ -18,10 +19,13 @@ import redis.clients.jedis.Jedis;
  * 把项目分为多个不同的CodeBlock，分割粒度为package、class、method、attribute
  */
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class CodeBlock implements Serializable {
     Integer codeBlockID;
     CodeBlockType type;//package, class, method, attribute
     List<CodeBlockTime> history;
+
+    public CodeBlock(){}
 
     public CodeBlock(Integer id, CodeBlockType tp) {
         this.codeBlockID = id;
